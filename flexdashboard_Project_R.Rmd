@@ -1,0 +1,248 @@
+---
+title: "flexdashboard Project R"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+    theme: yeti
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(tidyverse)
+library(plotly)
+library(shiny)
+library(ggplot2)
+library(gganimate)
+library(gifski)
+library(shinythemes)
+
+# Importing and preparing data
+
+dat <- read_csv(url("https://www.dropbox.com/s/4ebgnkdhhxo5rac/cel_volden_wiseman%20_coursera.csv?raw=1"))
+data <- read_csv(url("https://www.dropbox.com/s/uhfstf6g36ghxwp/cces_sample_coursera.csv?raw=1"))
+
+dat$Party<-recode(dat$dem,`1`="Democrat",`0`="Republican")
+```
+
+Scatterplot with smoothing {data-orientation=rows}
+===================================================
+
+### Passage and Vote Relationship - Scatterplot with smoothing
+
+```{r}
+ggplotly( # Creating an interactive plot
+  dat %>% # Selecting dataset
+  drop_na() %>% # Dropping NA values
+  filter(congress==110) %>% # Selecting only data for 110th Congress
+  ggplot(
+   aes(x=votepct, y=all_pass, color=Party))+ # Selecting x and y axis and filling
+   geom_jitter()+ # Making scatterplot
+   geom_smooth()+ # Adding smoothing
+   scale_color_manual(values=c("#013274", "#bd0d22"))+ # Selecting colors 
+   labs(x="Vote Pct.", y="Al Pass", title="Passage and Vote Pct., 110th Congress") # Adding labels
+)
+```
+
+### Passage and Ideology Relationship - Scatterplot with smoothing 
+
+```{r}
+ggplotly( 
+  dat %>%
+  drop_na() %>%
+  filter(congress==110) %>%
+  ggplot(
+    aes(x=dwnom1, y=all_pass, color=Party))+
+    geom_point()+
+    geom_smooth()+
+    scale_color_manual(values=c("#013274", "#bd0d22"))+
+    labs(x="DW Nominate.", y="All Pass", title="Passage and Ideology, 110th Congress")
+)
+```
+
+Interactive filtering
+======================
+
+```{r}
+# Preparing data for the graph
+dat2 <- dat %>% 
+  group_by(st_name) %>% # Grouping - needed for summarising data
+  filter(congress==110) %>%
+  summarise(passed=sum(all_pass)) # Summarizing by sum of passes
+```
+
+Input{.sidebar} 
+---------------------
+```{r}
+# Creating sidebar - interactive filter to be used by user
+selectInput(inputId = "st_name",
+            label = "State",
+            choices = unique(dat2$st_name), # All states can be selected by a user
+            selected = unique(dat2$st_name), # By default all states are selected
+            multiple = TRUE) # Multiple states may be selected
+```
+
+Column 
+-------------------
+
+### Total bills passed by state - interactive bar chart
+
+```{r}
+renderPlotly( # Creating an interactive graph
+  ggplot(
+   filter(dat2, st_name==input$st_name), # By default, all states are chosen 
+   aes(x=st_name, y=passed, fill=passed))+
+   geom_bar(stat="identity",text=NULL, fill="#013274")+ # Creating a bar chart, y values are provided
+   coord_flip()+ # Creating a horizontal graph
+   labs(x="State Name", y="Total Bills Passed per State", title="Total Bills by State Delegations, 110th Congress")+
+   theme(legend.position="none") # Removing legend
+   )
+```
+
+2 Tabs with interactive filter
+===============================
+
+```{r}
+# Preparing data
+data <- data %>% 
+  drop_na() %>%
+  select(c("pid7","ideo5","newsint","gender","educ","CC18_308a","region")) # Selecting needed columns
+```
+
+Input{.sidebar} 
+---------------------
+```{r}
+# Creating sidebar - interactive filter to be used by user
+sliderInput(inputId="ideo5", 
+            label = "Select Five Point Ideology (1=Very liberal, 5=Very conservative)",
+            min = 1, 
+            max = 5,
+            value = 3) # Default value selected
+```
+
+Column{.tabset}
+------------------------
+
+### Count of questioned by idelogy and political beliefs
+
+```{r}
+renderPlotly(
+  ggplot(
+    filter(data, ideo5==input$ideo5), # Ideology can be selected by user
+    aes(x=pid7))+
+    geom_bar(fill="#013274")+
+    labs(x="7 Point Party ID, 1=Very D, 7=Very R")
+)
+```
+
+### Count of questioned by ideology and Trump support 
+
+```{r}
+renderPlotly(
+  ggplot(
+    filter(data, ideo5==input$ideo5), 
+    aes(x=CC18_308a))+
+    geom_bar(fill="#bd0d22")+
+    labs(x="Trump Support")
+)
+```
+
+Scatterplot and boxplot {data-orientation=rows}
+=========
+
+### Bills passed by gender - faceted scatter plot
+
+```{r}
+# Filtering data for the graph
+filtered <- filter(dat, congress==115)
+filtered$majority <- recode(filtered$majority, `0`="Minority", `1`="Majority")
+Gender <- recode(filtered$female,`0` = "male", `1` = "female")
+```
+
+```{r}
+ggplot(
+  filtered, 
+  aes(x=votepct, y=all_pass, color=Gender))+
+  geom_point()+
+  scale_color_manual(values=c("#bd0d22", "#013274"))+
+  labs(x="Vote Percentate", y="Bills Passed")+
+  facet_wrap(~majority) # Creating two separate graphs per majority
+```
+
+### Legislative effectiveness - boxplot
+
+```{r}
+# Filtering data for the graph
+filtered <- filter(dat, congress==115)
+filtered$majority <- recode(filtered$majority, `0`="Minority", `1`="Majority")
+```
+
+```{r}
+ggplot(
+  filtered, 
+  aes(y=les, x=majority, group=majority, fill=majority))+
+  geom_boxplot()+
+  labs(x="Majority or Minority", y="Legislative Effectiveness", title="LES in the 115th Congress", fill=dat$majority)+
+  scale_fill_manual(values=c("#bd0d22", "#013274"))
+```
+
+Animations {data-orientation=rows}
+===================================
+
+### Animation by city - random data
+
+```{r}
+# Creating data for animation (code in this chunk was predefined by course instructor)
+Category<-c("Alpha","Beta","Zeta")
+City<-c("Hong Kong","London","Nairobi")
+
+my_dat<-expand_grid(Category,City)
+set.seed(84684)
+my_dat$Value<-sample(1:10,9,replace=T)
+```
+
+```{r problem_1_solution,echo=FALSE,message=FALSE}
+animate( # Creating an animation
+  ggplot(
+   my_dat, 
+   aes(x=Category, y=Value, fill=City))+ # Choosing data, axis data and filling
+   geom_bar(stat="identity")+ 
+   transition_states(City)+ # Transition performed by city
+   scale_fill_manual(values=c("#bd0d22", "#8db046", "#013274"))+ 
+   enter_fade()+ # Adding enter fade
+   exit_fade() # Adding exit fade
+)
+```
+
+### Animated lollipop chart - random data
+
+```{r}
+# Creating data for a graph (code in this chunk was predefined by course instructor)
+
+Category<-seq(from=1,to=10)
+Time<-seq(from=1,to=10)
+
+dat3<-expand_grid(Category,Time)
+set.seed(78957)
+dat3$Quantity<-runif(100,0,10)
+```
+
+```{r}
+ggplotly( # Creating an interactive animation
+  ggplot(
+    dat3, 
+    aes(x=Category, y=Quantity, frame=Time))+
+    geom_point(color="#013274")+ # Adding points to the graph
+    geom_segment(aes(x=Category, xend=Category, y=0, yend=Quantity))+ # Adding stems to the graph
+    theme(axis.text.x=element_text(angle=90)) # Rotating labels on x axis
+)
+```
+
+# Copyright notice
+
+This project is a collection of graphics created for Coursera specialization [Data Visualization & Dashboarding with R.](https://www.coursera.org/specializations/jhu-data-visualization-dashboarding-with-r) 
+
+Publically available data were used ([link 1](https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/WOT7O8), [ link 2](https://www.dropbox.com/s/4ebgnkdhhxo5rac/cel_volden_wiseman%20_coursera.csv?raw=1), [ link 3](https://www.dropbox.com/s/uhfstf6g36ghxwp/cces_sample_coursera.csv?raw=1)) and were used exclusively for educational purposes. 
+
+Kinga Siwiec, 2021
