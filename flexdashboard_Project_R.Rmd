@@ -219,7 +219,6 @@ animate( # Creating an animation
 
 ```{r}
 # Creating data for a graph (code in this chunk was predefined by course instructor)
-
 Category<-seq(from=1,to=10)
 Time<-seq(from=1,to=10)
 
